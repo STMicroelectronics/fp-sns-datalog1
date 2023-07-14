@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Release Notes for FP-SNS-DATALOG1 application example</title>
+  <style type="text/css">
+      code{white-space: pre-wrap;}
+      span.smallcaps{font-variant: small-caps;}
+      span.underline{text-decoration: underline;}
+      div.column{display: inline-block; vertical-align: top; width: 50%;}
+  </style>
+  <link rel="stylesheet" href="../_htmresc/mini-st_2020.css" />
+  <!--[if lt IE 9]>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/html5shiv/3.7.3/html5shiv-printshiv.min.js"></script>
+  <![endif]-->
+  <link rel="icon" type="image/x-icon" href="../_htmresc/favicon.png" />
+</head>
+<body>
+<div class="row">
+<div class="col-sm-12 col-lg-4">
+<center>
+<h1 id="release-notes-for-fp-sns-datalog1-projects">Release Notes for <mark>FP-SNS-DATALOG1 projects</mark></h1>
+<p>Copyright © 2022 STMicroelectronics<br />
+</p>
+<a href="https://www.st.com" class="logo"><img src="../_htmresc/st_logo_2020.png" alt="ST logo" /></a>
+</center>
+<h1 id="purpose">Purpose</h1>
+<p>The HSDatalog (High-Speed DataLog) works with all sensors configured at their maximum sampling rate. Sensor data can be stored on micro SD Card or can be streamed via USB to a PC host</p>
+<ul>
+<li>WARNING: SD card performances are very different between each other. This example works properly with microSD card Speed Class 10 (C10) and UHS Speed Class 1 (U1) (i.e: SanDisk Industrial 32GB U1 C10, Verbatim Premium 16GB U1 C10 or Transcend Premium 16 GB U1 C10). It is not granted that the application can still work properly if a different kind of microSD card is used (i.e: you can see some data loss due to a SD Card low write speed).</li>
+</ul>
+<p>To automatically read and plot the data, MATLAB and Python scripts are available in Utilities folder. In order to handle JSON files the script requires MATLAB v2019a or newer. Python class was developed and tested using Python 3.10.</p>
+<p>Also a MATLAB app ‘ReadSensorDataApp.mlapp’ is available, developed and tested using the App Designer tool available in MATLAB v2019a.</p>
+</div>
+<div class="col-sm-12 col-lg-8">
+<h1 id="update-history">Update History</h1>
+<div class="collapse">
+<input type="checkbox" id="collapse-section7" checked aria-hidden="true"> <label for="collapse-section7" aria-hidden="true">v1.5.0 / 7-Jul-2023</label>
+<div>
+<h2 id="main-changes">Main Changes</h2>
+<h3 id="maintenance-release">Maintenance release</h3>
+<ul>
+<li>Added automatic usbDataPacketSize calculation</li>
+<li>Code cleaning and alignment to the latest sensors drivers</li>
+<li>Code style reformatting</li>
+</ul>
+<h2 id="known-limitations">Known Limitations</h2>
+<ul>
+<li>None</li>
+</ul>
+<h2 id="development-toolchains-and-compilers">Development Toolchains and Compilers</h2>
+<ul>
+<li>IAR Embedded Workbench for ARM (EWARM) toolchain V9.20.1 + STLink-V3</li>
+<li>MDK-ARM toolchain V5.32.0 + STLink-V3</li>
+<li>STM32CubeIDE v1.12.1 + STLink-V3</li>
+</ul>
+<h2 id="supported-devices-and-boards">Supported Devices and Boards</h2>
+<ul>
+<li>STEVAL-STWINKT1</li>
+<li><a href="https://www.st.com/stwin">STEVAL-STWINKT1B</a></li>
+<li><a href="https://www.st.com/sensortilebox">STEVAL-MKSBOX1V1</a></li>
+</ul>
+<h2 id="backward-compatibility">Backward Compatibility</h2>
+<ul>
+<li>None</li>
+</ul>
+<h2 id="dependencies">Dependencies</h2>
+<ul>
+<li>None</li>
+</ul>
+</div>
+</div>
+<div class="collapse">
+<input type="checkbox" id="collapse-section6" aria-hidden="true"> <label for="collapse-section6" aria-hidden="true">v1.4.0 / 18-May-2022</label>
+<div>
+<h2 id="main-changes-1">Main Changes</h2>
+<h3 id="maintenance-release-and-product-update">Maintenance release and product update</h3>
+<ul>
+<li><strong>Added support to SensorTile.box</strong></li>
+<li>Code cleaning and alignment to the latest sensors drivers</li>
+<li>Added header license neutral</li>
+<li>Added licence files</li>
+<li>Updated IDEs and regenerated binaries</li>
+</ul>
+<h2 id="known-limitations-1">Known Limitations</h2>
+<ul>
+<li>None</li>
+</ul>
+<h2 id="development-toolchains-and-compilers-1">Development Toolchains and Compilers</h2>
+<ul>
+<li>IAR Embedded Workbench for ARM (EWARM) toolchain V9.20.1 + STLink-V3</li>
+<li>MDK-ARM toolchain V5.32.0 + STLink-V3</li>
+<li>STM32CubeIDE v1.9.0 + STLink-V3</li>
+</ul>
+<h2 id="supported-devices-and-boards-1">Supported Devices and Boards</h2>
+<ul>
+<li>STEVAL-STWINKT1</li>
+<li><a href="https://www.st.com/stwin">STEVAL-STWINKT1B</a></li>
+<li><a href="https://www.st.com/sensortilebox">STEVAL-MKSBOX1V1</a></li>
+</ul>
+<h2 id="backward-compatibility-1">Backward Compatibility</h2>
+<ul>
+<li>None</li>
+</ul>
+<h2 id="dependencies-1">Dependencies</h2>
+<ul>
+<li>None</li>
+</ul>
+</div>
+</div>
+<div class="collapse">
+<input type="checkbox" id="collapse-section5" aria-hidden="true"> <label for="collapse-section5" aria-hidden="true">v1.3.0 / 5-Nov-2021</label>
+<div>
+<h2 id="main-changes-2">Main Changes</h2>
+<h3 id="maintenance-and-patch-release">Maintenance and patch release</h3>
+<ul>
+<li><strong>Added Fast FOTA feature</strong></li>
+<li><strong>Updated to BlueST SDK v2</strong></li>
+<li><strong>Redesigned BLE advertisement</strong></li>
+<li><strong>Solved malloc issue in STM32CubeIDE project</strong></li>
+<li>Increased minimum sd buffer size</li>
+<li>Typo fixed in stm32l4xx_it.c: solve compilation error in Linux</li>
+<li>Enabled BLE MTU exchange</li>
+<li>Added end_time and start_time fields in AcquisitionDescriptor</li>
+<li>Reviewed SD card memory check and user button anti-bounce</li>
+</ul>
+<h2 id="known-limitations-2">Known Limitations</h2>
+<ul>
+<li>None</li>
+</ul>
+<h2 id="development-toolchains-and-compilers-2">Development Toolchains and Compilers</h2>
+<ul>
+<li>IAR Embedded Workbench for ARM (EWARM) toolchain V8.50.9 + STLink-V3</li>
+<li>MDK-ARM toolchain V5.32.0 + STLink-V3</li>
+<li>STM32CubeIDE v1.7.0 + STLink-V3</li>
+</ul>
+<h2 id="supported-devices-and-boards-2">Supported Devices and Boards</h2>
+<ul>
+<li><a href="https://www.st.com/en/evaluation-tools/steval-stwinkt1.html">STEVAL-STWINKT1</a></li>
+<li><a href="https://www.st.com/en/evaluation-tools/steval-stwinkt1b.html">STEVAL-STWINKT1B</a></li>
+</ul>
+<h2 id="backward-compatibility-2">Backward Compatibility</h2>
+<ul>
+<li>None</li>
+</ul>
+<h2 id="dependencies-2">Dependencies</h2>
+<ul>
+<li>None</li>
+</ul>
+</div>
+</div>
+<div class="collapse">
+<input type="checkbox" id="collapse-section4" aria-hidden="true"> <label for="collapse-section4" aria-hidden="true">v1.2.0 / 25-Jun-2021</label>
+<div>
+<h2 id="main-changes-3">Main Changes</h2>
+<h3 id="maintenance-and-patch-release-1">Maintenance and patch release</h3>
+<ul>
+<li><strong>Updated hci_tl_interface to solve BlueNRG-2 bug</strong></li>
+<li><strong>Loading an UCF enables MLC subsensor automatically</strong></li>
+<li><strong>New feature: check if SD is full and stop automatically the acquisition</strong></li>
+<li>Code cleaning and refactoring for SDM_CalculateSdWriteBufferSize function</li>
+<li>Handling errors by LED blinking</li>
+<li>Solved warnings in sdcard_manager found in STM32CubeIDE project</li>
+</ul>
+<h2 id="known-limitations-3">Known Limitations</h2>
+<ul>
+<li>None</li>
+</ul>
+<h2 id="development-toolchains-and-compilers-3">Development Toolchains and Compilers</h2>
+<ul>
+<li>IAR Embedded Workbench for ARM (EWARM) toolchain V8.50.9 + STLink-V3</li>
+<li>MDK-ARM toolchain V5.32.0 + STLink-V3</li>
+<li>STM32CubeIDE v1.6.1 + STLink-V3</li>
+</ul>
+<h2 id="supported-devices-and-boards-3">Supported Devices and Boards</h2>
+<ul>
+<li><a href="https://www.st.com/en/evaluation-tools/steval-stwinkt1.html">STEVAL-STWINKT1</a></li>
+<li><a href="https://www.st.com/en/evaluation-tools/steval-stwinkt1b.html">STEVAL-STWINKT1B</a></li>
+</ul>
+<h2 id="backward-compatibility-3">Backward Compatibility</h2>
+<ul>
+<li>None</li>
+</ul>
+<h2 id="dependencies-3">Dependencies</h2>
+<ul>
+<li>None</li>
+</ul>
+</div>
+</div>
+<div class="collapse">
+<input type="checkbox" id="collapse-section3" aria-hidden="true"> <label for="collapse-section3" aria-hidden="true">v1.1.0 / 29-Jan-2021</label>
+<div>
+<h2 id="main-changes-4">Main Changes</h2>
+<h3 id="maintenance-release-and-product-update-1">Maintenance release and product update</h3>
+<ul>
+<li><strong>Refactored usbd_wcid_interface.c</strong></li>
+<li><strong>Updated HSD_USE_FAKE_DATA to HSD_USE_DUMMY_DATA</strong></li>
+<li><strong>Setup automatic allocation of SdWriteBufferSize in base of the effective baud rate</strong></li>
+<li><strong>Deleted refs to HSD_SD_LOGGING_MODE</strong></li>
+<li>Moved sd_diskio from MW to User space</li>
+<li>Deleted unused uuid_ble_service.h</li>
+<li>Switched off orange led during USB streaming</li>
+<li>Modified Attribute_Modified_CB to enable/disable BSP_BC_CmdSend only when needed</li>
+<li>Minor in EXTI2_IRQHandler comment</li>
+<li>Bug fixed for always-on HW TAG 1</li>
+<li>Added a comment on ATT_MTU</li>
+</ul>
+<h2 id="known-limitations-4">Known Limitations</h2>
+<ul>
+<li>None</li>
+</ul>
+<h2 id="development-toolchains-and-compilers-4">Development Toolchains and Compilers</h2>
+<ul>
+<li>IAR Embedded Workbench for ARM (EWARM) toolchain V8.50.5 + STLink-V3</li>
+<li>MDK-ARM toolchain V5.31.0 + STLink-V3</li>
+<li>STM32CubeIDE v1.5.1 + STLink-V3</li>
+</ul>
+<h2 id="supported-devices-and-boards-4">Supported Devices and Boards</h2>
+<ul>
+<li><a href="https://www.st.com/en/evaluation-tools/steval-stwinkt1.html">STEVAL-STWINKT1</a></li>
+<li><a href="https://www.st.com/en/evaluation-tools/steval-stwinkt1b.html">STEVAL-STWINKT1B</a></li>
+</ul>
+<h2 id="backward-compatibility-4">Backward Compatibility</h2>
+<ul>
+<li>None</li>
+</ul>
+<h2 id="dependencies-4">Dependencies</h2>
+<ul>
+<li>None</li>
+</ul>
+</div>
+</div>
+<div class="collapse">
+<input type="checkbox" id="collapse-section2" aria-hidden="true"> <label for="collapse-section2" aria-hidden="true">v1.0.0 / 13-Nov-2020</label>
+<div>
+<h2 id="main-changes-5">Main Changes</h2>
+<h3 id="first-official-release">First official release</h3>
+<ul>
+<li><strong>Main features for HSDatalog example</strong>:
+<ul>
+<li>High-rate (up to 6 Mbit/s) data capture software suite</li>
+<li>Compatible with <a href="https://www.st.com/en/embedded-software/stblesensor.html">ST BLESensor app</a> for system setup and real-time control</li>
+<li>Compatible with <a href="https://www.st.com/en/embedded-software/unico-gui.html">UNICO</a> for Machine Learning Core available in ISM330DHCX component</li>
+<li>Hardware and software labelling features</li>
+<li>Timestamping technique for all sensors</li>
+<li>FatFS third-party FAT file system module for small embedded systems</li>
+<li>FreeRTOS third-party RTOS kernel for embedded devices</li>
+</ul></li>
+</ul>
+<h2 id="known-limitations-5">Known Limitations</h2>
+<ul>
+<li>None</li>
+</ul>
+<h2 id="development-toolchains-and-compilers-5">Development Toolchains and Compilers</h2>
+<ul>
+<li>IAR Embedded Workbench for ARM (EWARM) toolchain V8.50.5 + STLink-V3</li>
+<li>RealView Microcontroller Development Kit (MDK-ARM) toolchain V5.31.0 + STLink-V3</li>
+<li>STM32CubeIDE v1.4.2 + STLink-V3</li>
+</ul>
+<h2 id="supported-devices-and-boards-5">Supported Devices and Boards</h2>
+<ul>
+<li><a href="https://www.st.com/en/evaluation-tools/steval-stwinkt1.html">STEVAL-STWINKT1</a></li>
+</ul>
+<h2 id="backward-compatibility-5">Backward Compatibility</h2>
+<ul>
+<li>None</li>
+</ul>
+<h2 id="dependencies-5">Dependencies</h2>
+<ul>
+<li>None</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<footer class="sticky">
+<div class="columns">
+<div class="column" style="width:95%;">
+<p>For complete documentation on <strong>STM32</strong> microcontrollers please visit: <a href="https://www.st.com/en/microcontrollers-microprocessors.html">www.st.com</a></p>
+</div><div class="column" style="width:5%;">
+<p><abbr title="Based on template cx566953 version 2.0">Info</abbr></p>
+</div>
+</div>
+</footer>
+</body>
+</html>

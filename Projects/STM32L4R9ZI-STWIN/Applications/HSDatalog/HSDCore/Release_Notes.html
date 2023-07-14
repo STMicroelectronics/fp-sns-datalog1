@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Release Notes for High-Speed DataLog Core</title>
+  <style type="text/css">
+      code{white-space: pre-wrap;}
+      span.smallcaps{font-variant: small-caps;}
+      span.underline{text-decoration: underline;}
+      div.column{display: inline-block; vertical-align: top; width: 50%;}
+  </style>
+  <link rel="stylesheet" href="_htmresc/mini-st_2020.css" />
+  <!--[if lt IE 9]>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/html5shiv/3.7.3/html5shiv-printshiv.min.js"></script>
+  <![endif]-->
+  <link rel="icon" type="image/x-icon" href="_htmresc/favicon.png" />
+</head>
+<body>
+<div class="row">
+<div class="col-sm-12 col-lg-4">
+<center>
+<h1 id="release-notes-for-high-speed-datalog-core">Release Notes for <mark>High-Speed DataLog Core</mark></h1>
+<p>Copyright © 2022 STMicroelectronics</p>
+<a href="https://www.st.com" class="logo"><img src="_htmresc/st_logo_2020.png" alt="ST logo" /></a>
+</center>
+<h1 id="purpose">Purpose</h1>
+<p>The High-Speed DataLog Core application module (HSDCore) manages all sensors configured at their maximum sampling rate.</p>
+</div>
+<div class="col-sm-12 col-lg-8">
+<h1 id="update-history">Update history</h1>
+<div class="collapse">
+<input type="checkbox" id="collapse-section9" area-hidden="true"> <label for="collapse-section9" area-hidden="true"><strong>v1.4.1 / 7-Jul-2023</strong></label>
+<div>
+<h2 id="main-changes">Main Changes</h2>
+<h3 id="maintenance-release">Maintenance release</h3>
+<ul>
+<li>Updated deviceDescriptor, added "model" and "bleMacAddress" fields</li>
+<li>Code cleaning and alignment to the latest sensors drivers</li>
+<li>Code style reformatting</li>
+</ul>
+</div>
+</div>
+<div class="collapse">
+<input type="checkbox" id="collapse-section8" checked area-hidden="true"> <label for="collapse-section8" area-hidden="true"><strong>v1.4.0 / 18-May-2022</strong></label>
+<div>
+<h2 id="main-changes-1">Main Changes</h2>
+<h3 id="maintenance-release-1">Maintenance release</h3>
+<ul>
+<li>Code cleaning and alignment to the latest sensors drivers</li>
+<li>Added header license neutral</li>
+<li>Added licence files</li>
+</ul>
+</div>
+</div>
+<div class="collapse">
+<input type="checkbox" id="collapse-section7" area-hidden="true"> <label for="collapse-section7" area-hidden="true"><strong>v1.3.0 / 5-Nov-2021</strong></label>
+<div>
+<h2 id="main-changes-2">Main Changes</h2>
+<h3 id="maintenance-and-patch-release">Maintenance and patch release</h3>
+<ul>
+<li>Redesigned ODR and samplesPerTimestamp settings for HTS221 and LPS22HH: avoid misalignment between JSON configuration and effective sensor configuration</li>
+<li>Fixed samplesPerTimestamp calculation for ISM330DHCX MLC subsensor</li>
+<li>Added end_time and start_time fields in AcquisitionInfo.json</li>
+<li>Avoid to save unwanted HW_tags initial state in AcquisitionInfo.json</li>
+<li>Updated FIFO read command for IIS3DWB</li>
+</ul>
+</div>
+</div>
+<div class="collapse">
+<input type="checkbox" id="collapse-section6" area-hidden="true"> <label for="collapse-section6" area-hidden="true"><strong>v1.2.0 / 25-Jun-2021</strong></label>
+<div>
+<h2 id="main-changes-3">Main Changes</h2>
+<h3 id="maintenance-and-patch-release-1">Maintenance and patch release</h3>
+<ul>
+<li><strong>Enabled dynamic ODR selection for both microphones IMP23ABSU and IMP23DT05</strong></li>
+<li><strong>Issue solved: recalculate right sensitivity after changing FS in “XXX_Create_Sensor”</strong></li>
+<li><strong>Issue solved in parse_Status_from_JSON: avoid parsing ucfStatus</strong></li>
+<li><strong>Bug fixed in HTS221 and LPS22HH: use the same ODR for both subsensors also at the startup</strong></li>
+<li>Aligned hts221_app and iis2mdc_app to the latest drivers available</li>
+<li>Code cleaning</li>
+</ul>
+</div>
+</div>
+<div class="collapse">
+<input type="checkbox" id="collapse-section5" area-hidden="true"> <label for="collapse-section5" area-hidden="true"><strong>v1.1.0 / 29-January-2021</strong></label>
+<div>
+<h2 id="main-changes-4">Main Changes</h2>
+<h3 id="maintenance-release-and-product-update">Maintenance release and product update</h3>
+<ul>
+<li><strong>Complete refactoring of ism330dhcx_app.c to better handle MLC use cases</strong></li>
+<li><strong>Updated HSD_USE_FAKE_DATA to HSD_USE_DUMMY_DATA</strong></li>
+<li><strong>Aligned mic gain to X-CUBE-MEMSMIC1</strong></li>
+<li>Added “batteryState” field in Performance Status JSON</li>
+<li>Added COM_GetnBytesPerSample function in com_manager</li>
+<li>Move sensor osThreadSuspend from OS_Init to thread</li>
+<li>Deleted refs to HS_SD_LOGGING_MODE</li>
+<li>Code cleaning</li>
+</ul>
+</div>
+</div>
+<div class="collapse">
+<input type="checkbox" id="collapse-section4" area-hidden="true"> <label for="collapse-section4" area-hidden="true"><strong>v1.0.2 / 13-November-2020</strong></label>
+<div>
+<h2 id="main-changes-5">Main Changes</h2>
+<h3 id="patch-release">Patch release</h3>
+<ul>
+<li>Bug fixed in create_JSON_DeviceInfo</li>
+<li>Code cleaning and compilation warnings solved</li>
+</ul>
+</div>
+</div>
+<div class="collapse">
+<input type="checkbox" id="collapse-section3" area-hidden="true"> <label for="collapse-section3" area-hidden="true"><strong>v1.0.1 / 23-October-2020</strong></label>
+<div>
+<h2 id="main-changes-6">Main Changes</h2>
+<h3 id="patch-release-1">Patch release</h3>
+<ul>
+<li>Parsed missing tagList section in parse_Device_from_JSON</li>
+</ul>
+</div>
+</div>
+<div class="collapse">
+<input type="checkbox" id="collapse-section2" area-hidden="true"> <label for="collapse-section2" area-hidden="true"><strong>v1.0.0 / 14-October-2020</strong></label>
+<div>
+<h2 id="main-changes-7">Main Changes</h2>
+<h3 id="first-official-release">First official release</h3>
+<ul>
+<li>Manages the nine ST sensors present on STWIN</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<footer class="sticky">
+<div class="columns">
+<div class="column" style="width:95%;">
+<p>For complete documentation on <strong>STM32 Microcontrollers</strong> , visit: <a href="http://www.st.com/STM32">www.st.com</a></p>
+</div><div class="column" style="width:5%;">
+<p><abbr title="Based on template cx566953 version 2.0">Info</abbr></p>
+</div>
+</div>
+</footer>
+</body>
+</html>

@@ -1,0 +1,39 @@
+{
+	"Description": "descriptionTest",
+	"Name": "testName",
+	"Tags": [
+		{
+			"Enable": true,
+			"Label": "SW_TAG_0",
+			"t": 2.334905825
+		},
+		{
+			"Enable": false,
+			"Label": "SW_TAG_0",
+			"t": 5.86549485
+		},
+		{
+			"Enable": true,
+			"Label": "SW_TAG_4",
+			"t": 7.065516591666667
+		},
+		{
+			"Enable": true,
+			"Label": "SW_TAG_1",
+			"t": 10.589987916666667
+		},
+		{
+			"Enable": false,
+			"Label": "SW_TAG_1",
+			"t": 11.770671275
+		},
+		{
+			"Enable": false,
+			"Label": "SW_TAG_4",
+			"t": 12.961139666666666
+		}
+	],
+	"UUIDAcquisition": "201ffda9-1c06-491e-86a1-ddfd2814db96",
+	"end_time": "2022-07-19T10:42:30.435Z",
+	"start_time": "2022-07-19T10:42:14.56Z"
+}

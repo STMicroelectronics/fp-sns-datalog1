@@ -1,0 +1,9 @@
+st_pnpl
+st_dtdl_gui
+numpy
+pandas
+colorama
+click
+PySide6==6.4.3
+pyqtgraph
+matplotlib
