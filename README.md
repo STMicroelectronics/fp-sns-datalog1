@@ -14,7 +14,7 @@ Sensor data can be stored onto a micro SD card (Secure Digital High Capacity - S
 file system, or streamed to a PC via USB (WinUSBclass) using the companion host software (cli_example) provided
 for Windows and Linux.
 
-The application can be controlled via Bluetooth using the [**STBLESensor app**](https://www.st.com/en/embedded-software/stblesensor.html)
+The application can be controlled via Bluetooth using the [**STBLESensClassic app**](https://www.st.com/en/embedded-software/stblesensclassic.html)
 which lets you manage the board and sensor configurations, start/stop data acquisition on SD card and control 
 data labelling.
 
