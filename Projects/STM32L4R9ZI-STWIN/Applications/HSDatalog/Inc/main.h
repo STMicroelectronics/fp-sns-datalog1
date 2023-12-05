@@ -46,6 +46,8 @@ extern "C" {
 
 #define HSD_BLE_ENABLE                  1
 #define HSD_BLE_STATUS_TIMER_ENABLE     1
+#define HSD_BLE_ADV_UPDATER_TIMER       5000
+#define HSD_BLE_SEND_PERFORMANCE_STATUS_TIMER 5000
 
 /*
  * SD task priority should be lower than data acquisition tasks
@@ -76,7 +78,7 @@ extern "C" {
 /* Package Version only numbers 0->9 */
 #define HSD_VERSION_MAJOR '1'
 #define HSD_VERSION_MINOR '5'
-#define HSD_VERSION_PATCH '0'
+#define HSD_VERSION_PATCH '1'
 
 /* Print messages for debugging memory allocation */
 #define HSD_PRINTF_DEBUG 0

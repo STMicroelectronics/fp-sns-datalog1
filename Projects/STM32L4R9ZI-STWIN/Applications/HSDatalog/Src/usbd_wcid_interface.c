@@ -380,7 +380,7 @@ static uint32_t WCID_STREAMING_Itf_StopStreaming(void)
     }
   }
 
-  osTimerStart(bleAdvUpdaterTim_id, 3000);
+  osTimerStart(bleAdvUpdaterTim_id, HSD_BLE_ADV_UPDATER_TIMER);
 
   return USBD_OK;
 }

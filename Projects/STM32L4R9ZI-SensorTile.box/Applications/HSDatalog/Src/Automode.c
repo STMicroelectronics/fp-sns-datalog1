@@ -219,6 +219,7 @@ sys_error_code_t AMLoadCfgFromString(const char *pcSerializedCfg)
     AMOnNewConfigurationReady(pxModel);
   }
 
+  json_value_free(pxJValue);
   return xRes;
 }
 

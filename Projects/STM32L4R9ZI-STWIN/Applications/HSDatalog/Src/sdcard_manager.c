@@ -52,6 +52,7 @@
 /* Private define ------------------------------------------------------------*/
 
 #define LOG_DIR_PREFIX    "STWIN_"
+#define SD_CHECK_TIME     600000
 
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
@@ -61,7 +62,6 @@ FIL FileConfigHandler;
 FIL FileLogError;
 char SDPath[4]; /* SD card logical drive path */
 DWORD memoryAvailable;
-uint32_t SDTick = 0;
 
 SD_HandleTypeDef hsd1;
 
@@ -110,6 +110,10 @@ static stmdev_ctx_t MLC_ctx_instance = {SM_SPI_Write_Os, SM_SPI_Read_Os, NULL, &
 
 /* Private function prototypes -----------------------------------------------*/
 
+static void SDM_Memory_Timer_Callback(void const *argument);
+osTimerId SDM_Memory_Timer_Id;
+osTimerDef(SDM_Memory_Timer, SDM_Memory_Timer_Callback);
+
 osThreadId SDM_Thread_Id;
 static void SDM_Thread(void const *argument);
 
@@ -137,7 +141,6 @@ static uint32_t SDM_SaveData(void);
 static uint32_t SDM_SaveDeviceConfig(char *dir_name);
 static uint32_t SDM_SaveAcquisitionInfo(char *dir_name);
 static uint32_t SDM_SaveUCF(char *dir_name);
-static void switchOff_LowBatteryLowMemory(void);
 
 /**
   * Function called when the Stop timer expires.
@@ -222,7 +225,6 @@ void Activate_Sensor(uint32_t id)
   }
 }
 
-
 uint8_t SDM_CheckLowMemory(void)
 {
   if (BSP_SD_IsDetected() == SD_PRESENT)
@@ -237,7 +239,8 @@ uint8_t SDM_CheckLowMemory(void)
     FRESULT fres = f_getfree(SDPath, &free_clusters, &SD);
     if (fres != FR_OK)
     {
-      while (1);
+      SDM_EndSDOperation();
+      return 1;
     }
 
     if (com_status == HS_DATALOG_IDLE)
@@ -257,7 +260,7 @@ uint8_t SDM_CheckLowMemory(void)
       return 0;
     }
   }
-  return 0;
+  return 1;
 }
 
 
@@ -266,6 +269,7 @@ uint8_t SDM_CheckLowMemory(void)
   * @brief  SD card main thread
   * @retval None
   */
+extern uint8_t lowMemory;
 static void SDM_Thread(void const *argument)
 {
   (void)argument;
@@ -283,7 +287,7 @@ static void SDM_Thread(void const *argument)
     /* If the battery is too low close the file and turn off the system */
     if (BatteryLow == 1)
     {
-      switchOff_LowBatteryLowMemory();
+      StopExecutionPhases();
     }
     evt = osMessageGet(sdThreadQueue_id, osWaitForever);  /* wait for message */
 
@@ -293,6 +297,14 @@ static void SDM_Thread(void const *argument)
 
       if (evt.status == osEventMessage)                 /* check the received message */
       {
+        if (evt.value.v == SDM_CHECK_MEMORY_USAGE)      /* Check SD card memory available */
+        {
+          lowMemory = SDM_CheckLowMemory();
+          if (lowMemory == 1)
+          {
+            StopExecutionPhases();
+          }
+        }
         if (evt.value.v == SDM_START_STOP)              /* start/stop acquisition command */
         {
           SDM_StartStopAcquisition();
@@ -309,16 +321,6 @@ static void SDM_Thread(void const *argument)
         else
         {
 
-        }
-      }
-
-      if (HAL_GetTick() - SDTick > 60000)               /* Check SD card memory available every minute */
-      {
-        SDTick = HAL_GetTick();
-
-        if (SDM_CheckLowMemory() == 1)
-        {
-          switchOff_LowBatteryLowMemory();
         }
       }
     }
@@ -377,6 +379,7 @@ static void SDM_StartAcquisition(void)
   SM_TIM_Start();
 
   osTimerStop(bleAdvUpdaterTim_id);
+  osTimerStart(SDM_Memory_Timer_Id, SD_CHECK_TIME);
 
   COM_GenerateAcquisitionUUID();
 
@@ -415,7 +418,8 @@ static void SDM_StopAcquisition(void)
 
   SDM_EndSDOperation();
   com_status = HS_DATALOG_IDLE;
-  osTimerStart(bleAdvUpdaterTim_id, 3000);
+  osTimerStop(SDM_Memory_Timer_Id);
+  osTimerStart(bleAdvUpdaterTim_id, HSD_BLE_ADV_UPDATER_TIMER);
 }
 
 /**
@@ -485,16 +489,19 @@ uint8_t checkRootFolder(void)
           fno_ucf = fno;
         }
       }
+      if (fno_json.fname != NULL)                         /* First load JSON configuration (if available) */
+      {
+        ret += checkConfigJson(fno_json);
+      }
+      if (fno_ucf.fname != NULL)                          /* Then load UCF configuration (if available) */
+      {
+        ret += checkConfigUcf(fno_ucf);
+      }
     }
-
-    if (fno_json.fname != NULL)                         /* First load JSON configuration (if available) */
-    {
-      ret += checkConfigJson(fno_json);
-    }
-    if (fno_ucf.fname != NULL)                          /* Then load UCF configuration (if available) */
-    {
-      ret += checkConfigUcf(fno_ucf);
-    }
+    
+    fno.fname[0] = 0;
+    fno_json.fname[0] = 0;
+    fno_ucf.fname[0] = 0;
   }
 
   f_closedir(&dir);
@@ -614,24 +621,6 @@ uint8_t checkConfigUcf(FILINFO fno)
     ret = SDM_MLC_CONFIG;
   }
   return ret;
-}
-
-
-/**
-  * @brief  When battery or memory are low, save the last available data and switch off the board
-  * @param  None
-  * @retval None
-  */
-void switchOff_LowBatteryLowMemory(void)
-{
-  SM_TIM_Stop();
-  if (SDM_CloseFiles() == 0)
-  {
-    SD_Logging_Active = 0;
-  }
-
-  SDM_EndSDOperation();
-  BSP_BC_CmdSend(SHIPPING_MODE_ON);
 }
 
 
@@ -822,6 +811,9 @@ void SDM_OS_Init(void)
 
   /* Start thread 1 */
   SDM_Thread_Id = osThreadCreate(osThread(SDManager_Thread), NULL);
+
+  /* Create periodic timer to check SD card memory */
+  SDM_Memory_Timer_Id = osTimerCreate(osTimer(SDM_Memory_Timer), osTimerPeriodic, NULL);
 }
 
 
@@ -1573,6 +1565,13 @@ void SDM_SetStopEPCallback(SDMTaskStopEPCallback pfCallback)
   s_pfStopEPCallback = pfCallback;
 }
 
+static void SDM_Memory_Timer_Callback(void const *argument)
+{
+  if (osMessagePut(sdThreadQueue_id, SDM_CHECK_MEMORY_USAGE, 0) != osOK)
+  {
+    SDM_Error_Handler();
+  }
+}
 
 /**
   * @brief  This function is executed in case of error occurrence

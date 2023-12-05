@@ -39,6 +39,7 @@ extern "C" {
 
 #define SDM_START_STOP              (0x00000001|SDM_CMD_MASK)
 #define SDM_WRITE_UCF_TO_ROOT       (0x00000002|SDM_CMD_MASK)
+#define SDM_CHECK_MEMORY_USAGE      (0x00000003|SDM_CMD_MASK)
 
 
 #define SDM_MAX_WRITE_TIME      2

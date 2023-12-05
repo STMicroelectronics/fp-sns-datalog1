@@ -18,10 +18,10 @@
 from datetime import datetime
 import json
 import os
-import math
 import struct
-import time
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+from matplotlib.widgets import Slider
 import numpy as np
 import pandas as pd
 
@@ -31,8 +31,8 @@ from st_hsdatalog.HSD.utils.cli_interaction import CLIInteraction as CLI
 from st_hsdatalog.HSD.utils.file_manager import FileManager
 from st_hsdatalog.HSD.utils.type_conversion import TypeConversion
 from st_pnpl.DTDL.device_template_manager import DeviceTemplateManager
-from st_pnpl.DTDL.device_template_model import ContentType, ContentSchema, SchemaType
-from st_pnpl.DTDL.dtdl_utils import DTDL_SENSORS_ID_COMP_KEY, MC_FAST_TELEMETRY_COMP_NAME, MC_FAST_TELEMETRY_STRING, MC_SLOW_TELEMETRY_COMP_NAME, MC_SLOW_TELEMETRY_STRING, AlgorithmTypeEnum, ComponentTypeEnum, SensorCategoryEnum
+from st_pnpl.DTDL.device_template_model import ContentSchema, SchemaType
+from st_pnpl.DTDL.dtdl_utils import DTDL_SENSORS_ID_COMP_KEY, MC_FAST_TELEMETRY_COMP_NAME, MC_SLOW_TELEMETRY_COMP_NAME, AlgorithmTypeEnum, ComponentTypeEnum, SensorCategoryEnum
 
 log = logger.get_logger(__name__)
 
@@ -85,6 +85,8 @@ class HSDatalog_v2:
                     
             except MissingAcquisitionInfoError:
                 log.error("No acquisition_info.json file in your Acquisition folder")
+                raise
+            except MissingDeviceModelError:
                 raise
         else:
             log.warning("Acquisition folder not provided.")
@@ -146,8 +148,8 @@ class HSDatalog_v2:
             f.close()
             device_dict = json.loads(device_json_str)
             self.__load_device(device_dict)
-        except:
-            raise MissingDeviceModelError
+        except MissingDeviceModelError as e:
+            raise e
 
     def __get_sensor_unit_from_dtdl(self, prop_w_unit_name, comp_dtdl_contents):
         property = [c for c in comp_dtdl_contents if c.name == prop_w_unit_name]
@@ -164,7 +166,7 @@ class HSDatalog_v2:
         for property in comp_dtdl_contents:
             if property.schema is not None and isinstance(property.schema, ContentSchema) and property.schema.type == SchemaType.ENUM :
                 enum_index = comp_status[property.name]
-                prop_value = float(self.__convert_prop_enum_in_value(enum_index, property))
+                prop_value = self.__convert_prop_enum_in_value(enum_index, property)
                 comp_status[property.name] = prop_value
     
     def __load_device(self, device_dict):
@@ -174,6 +176,24 @@ class HSDatalog_v2:
         fw_id = hex(self.device_model["fw_id"])
         
         dev_template_json = DeviceTemplateManager.query_dtdl_model(board_id, fw_id)
+        if isinstance(dev_template_json,dict):
+            if dev_template_json == {}:
+                raise MissingDeviceModelError(board_id,fw_id)
+            components = self.device_model.get("components")
+            fw_name = None
+            for c in components:
+                if c.get("firmware_info") is not None:
+                    fir_info = c.get("firmware_info")
+                    if fir_info.get("fw_name") is not None:
+                        fw_name = fir_info.get("fw_name")
+            # fw_name = self.device_model.get("components").get("firmware_info").get("fw_name")
+            if fw_name is not None:
+                splitted_fw_name = fw_name.lower().split("-")
+                reformatted_fw_name = "".join([splitted_fw_name[0]] + [f.capitalize() for f in splitted_fw_name[1:]])
+                for dt in dev_template_json:
+                    if reformatted_fw_name.lower() in  dev_template_json[dt][0].get("@id").lower():
+                        dev_template_json = dev_template_json[dt]
+                        break
         dt_manager = DeviceTemplateManager(dev_template_json)
         self.components_dtdl = dt_manager.get_components()
         for comp_name in self.components_dtdl.keys():
@@ -193,13 +213,15 @@ class HSDatalog_v2:
                         comp_status["unit"] = self.__get_sensor_unit_from_dtdl("aop", comp_dtdl_contents)
                         self.__convert_enums_in_values(comp_dtdl_contents, comp_status)
                     elif s_category == SensorCategoryEnum.ISENSOR_CLASS_RANGING.value:
-                        pass
+                        self.__convert_enums_in_values(comp_dtdl_contents, comp_status)
                     elif s_category == SensorCategoryEnum.ISENSOR_CLASS_LIGHT.value:
-                        pass
+                        self.__convert_enums_in_values(comp_dtdl_contents, comp_status)
                     elif s_category == SensorCategoryEnum.ISENSOR_CLASS_CAMERA.value:
                         pass
+                    elif s_category == SensorCategoryEnum.ISENSOR_CLASS_PRESENCE.value:
+                        self.__convert_enums_in_values(comp_dtdl_contents, comp_status)
                     else: #Retrocompatibility
-                        if self.components_dtdl[comp_name].id.split(":")[-2] == DTDL_SENSORS_ID_COMP_KEY:#"sensors":
+                        if ":"+DTDL_SENSORS_ID_COMP_KEY+":" in self.components_dtdl[comp_name].id: #"sensors":
                             s_info_contents = [c for c in self.components_dtdl[comp_name].contents if c.name == "odr" or c.name == "fs" or c.name == "aop"]
                             comp_status = [x for x in self.device_model["components"] if list(x.keys())[0] == comp_name]
                             if len(comp_status) > 0:
@@ -223,7 +245,9 @@ class HSDatalog_v2:
     def __convert_prop_enum_in_value(prop_enum_index, prop_content):
         enum_dname = prop_content.schema.enum_values[prop_enum_index].display_name
         value = enum_dname if isinstance(enum_dname,str) else enum_dname.en
-        return value.replace(',','.')
+        if prop_content.schema.value_schema.value == "integer":
+            return float(value.replace(',','.'))
+        return value
         
     
     def __load_acquisition_info(self, acq_info_json_file_path):
@@ -441,7 +465,7 @@ class HSDatalog_v2:
         # raise MissingAcquisitionInfoError
         return None
 
-    def get_time_tags(self):
+    def get_time_tags(self, which_tags = None):
         # for each label and for each time segment:
         # time_labels: array of tag
         #   = {'label': lbl, 'time_start': t_start, 'time_end': xxx, }
@@ -451,6 +475,10 @@ class HSDatalog_v2:
             acq_end_time = self.acq_info_model['end_time']
             self.s_t = datetime.strptime(acq_start_time, '%Y-%m-%dT%H:%M:%S.%fZ')
             tags = self.acq_info_model['tags']
+
+            if which_tags is not None:
+                tags = [tag for tag in tags if tag['l'] in which_tags]
+
             for lbl in self.get_acquisition_label_classes():
                 # start_time, end_time are vectors with the corresponding 't' entries in DataTag-json
                 start_time = np.array([t['ta'] for t in tags if t['l'] == lbl and t['e']])
@@ -473,7 +501,7 @@ class HSDatalog_v2:
             log.error("Empty Acquisition Info model.")
             raise MissingAcquisitionInfoError
 
-    def get_data_stream_tags(self, sensor_name, sensor_type = None, start_time = 0, end_time = -1):
+    def get_data_stream_tags(self, sensor_name, sensor_type = None, start_time = 0, end_time = -1, which_tags = None):
         """
         returns an array of dict:
         {'Label': <Label>, 'time_start': <time start: float>, 'time_end': <time end: float>,'sample_start': <sample index start: int>, 'sample_end': <sample index end: int>}
@@ -484,7 +512,7 @@ class HSDatalog_v2:
             st_tim = np.reshape(stream_time, -1)
             ind_sel = np.array(range(len(st_tim)))
             sensor_labels = []
-            for tag in self.get_time_tags():
+            for tag in self.get_time_tags(which_tags):
                 sampleTag = {}
                 tend = float(tag['time_end'])
                 if tend > st_tim[-1]: tend = st_tim[-1]
@@ -506,6 +534,13 @@ class HSDatalog_v2:
         log.error("Data extraction error for sensor: {}_{}".format(sensor_name))
         raise DataExtractionError(sensor_name)
 
+    def __get_active_mc_telemetries_names(self, ss_stat, comp_name):
+        if comp_name == "slow_mc_telemetries":
+            desc_telemetry = ss_stat.get("st_ble_stream")
+            return [st for st in desc_telemetry if isinstance(desc_telemetry[st],dict) and desc_telemetry[st].get("enable")==True]
+        elif comp_name == "fast_mc_telemetries":
+            return [k for k in ss_stat.keys() if isinstance(ss_stat[k],dict) and ss_stat[k]["enabled"] == True]
+
     def __process_datalog(self, sensor_name, ss_stat, raw_data, dataframe_size, timestamp_size, raw_flag = False, start_time = None):
 
         #####################################################################
@@ -518,8 +553,15 @@ class HSDatalog_v2:
             sensor_name_contains_mlc_ispu = "_mlc" in sensor_name or "_ispu" in sensor_name
             
             if c_type == ComponentTypeEnum.SENSOR.value:
+                s_category = ss_stat.get("sensor_category")
                 check_timestamps = not sensor_name_contains_mlc_ispu
-                frame_period = 0 if sensor_name_contains_mlc_ispu else samples_per_ts / ss_stat['odr']
+                if not s_category == SensorCategoryEnum.ISENSOR_CLASS_LIGHT.value:
+                    measodr = ss_stat.get("measodr")
+                    if measodr is None:
+                        measodr = ss_stat.get("odr")
+                    frame_period = 0 if sensor_name_contains_mlc_ispu else samples_per_ts / measodr
+                else:
+                    frame_period = 0 if sensor_name_contains_mlc_ispu else samples_per_ts / (1//(ss_stat.get("intermeasurement_time")//1000))
             elif c_type == ComponentTypeEnum.ALGORITHM.value:
                 check_timestamps = False
                 frame_period = 0
@@ -568,17 +610,15 @@ class HSDatalog_v2:
             #     timestamps.append(frame_period)
 
             if c_type == ComponentTypeEnum.SENSOR.value:
-                s_data = np.reshape(data, (-1, 64 if "_ispu" in sensor_name else ss_stat['dim'])).astype(dtype=np.byte if "_ispu" in sensor_name else float)
+                s_dim = ss_stat.get('dim',1)
+                s_data = np.reshape(data, (-1, 64 if "_ispu" in sensor_name else s_dim)).astype(dtype=np.byte if "_ispu" in sensor_name else float)
             elif c_type == ComponentTypeEnum.ALGORITHM.value:
                 if algo_type == AlgorithmTypeEnum.IALGORITHM_TYPE_FFT.value:
                     s_data = np.reshape(data, (-1, ss_stat['fft_length'])).astype(dtype=float)
             elif c_type == ComponentTypeEnum.ACTUATOR.value:
                 if sensor_name == MC_SLOW_TELEMETRY_COMP_NAME or sensor_name == MC_FAST_TELEMETRY_COMP_NAME:
-                    tele_keys = [k for k in ss_stat.keys() if isinstance(ss_stat[k],dict) and "graph_type" in ss_stat[k] and ss_stat[k]["enabled"] == True]
-                    for sk in tele_keys:
-                        graph_type = ss_stat[sk]["graph_type"]
-                    #TODO check graph types
-                    s_data = np.reshape(data, (-1, len(tele_keys))).astype(dtype=float)
+                    nof_telemetries = len(self.__get_active_mc_telemetries_names(ss_stat, sensor_name))
+                    s_data = np.reshape(data, (-1, nof_telemetries)).astype(dtype=float)
             
             if not raw_flag:
                 sensitivity = float(ss_stat.get('sensitivity', 1))
@@ -588,9 +628,7 @@ class HSDatalog_v2:
             # samples_time: numpy array of 1 clock value per each data sample
             if samples_per_ts > 1:
                 # initial_offset is relevant
-                ioffset = ss_stat.get('ioffset', timestamps[0])
-                if start_time is not None:
-                    ioffset += start_time
+                ioffset = ss_stat.get('ioffset', 0)
                 timestamps = np.append(ioffset, timestamps)
                 samples_time = np.zeros((num_frames * samples_per_ts, 1))
                 # sample times between timestamps are linearly interpolated
@@ -629,7 +667,6 @@ class HSDatalog_v2:
         data1D_per_frame = int(dataframe_size / data_type_byte_num)
 
         #samples per timestamp
-        # samples_per_ts = ss_stat.get('samples_per_ts', {}).get('val', 0)
         spts = ss_stat.get('samples_per_ts', {})
         if isinstance(spts, int):
             samples_per_ts = spts
@@ -643,7 +680,11 @@ class HSDatalog_v2:
             if algo_type == AlgorithmTypeEnum.IALGORITHM_TYPE_FFT.value:
                 samples_per_ts = 1#samples_per_ts or int(data1D_per_frame / ss_stat.get('dim', 1))
         elif c_type == ComponentTypeEnum.ACTUATOR.value:
-            nof_telemetries = len([k for k in ss_stat.keys() if isinstance(ss_stat[k],dict) and "graph_type" in ss_stat[k] and ss_stat[k]["enabled"] == True])
+            if sensor_name == "slow_mc_telemetries":
+                desc_telemetry = ss_stat.get("st_ble_stream")
+                nof_telemetries = len([st for st in desc_telemetry if isinstance(desc_telemetry[st],dict) and desc_telemetry[st].get("enable")==True])
+            elif sensor_name == "fast_mc_telemetries":
+                nof_telemetries = len([k for k in ss_stat.keys() if isinstance(ss_stat[k],dict) and ss_stat[k]["enabled"] == True])
             samples_per_ts = dataframe_size // data_type_byte_num // nof_telemetries
 
         return extract_data_and_timestamps()
@@ -677,25 +718,33 @@ class HSDatalog_v2:
         # get acquisition interface
         interface = self.acq_info_model['interface']
         
-        # data packet size (0:sd card, 1:usb)
-        if interface == 0:
-            data_packet_size = s_stat["sd_dps"] - 4
-        else:
-            data_packet_size = s_stat["usb_dps"]
-        
         # data protocol size:
         data_protocol_size = 4
+
+        # data packet size (0:sd card, 1:usb)
+        if interface == 0:
+            # s_category = s_stat.get("sensor_category")
+            # if s_category is not None:
+            #     if s_category == SensorCategoryEnum.ISENSOR_CLASS_LIGHT.value or s_category == SensorCategoryEnum.ISENSOR_CLASS_PRESENCE.value: #TODO remove this
+            #         data_packet_size = s_stat["sd_dps"]
+            #     else:
+            #         data_packet_size = s_stat["sd_dps"] - data_protocol_size    
+            # else:
+            data_packet_size = s_stat["sd_dps"] - data_protocol_size
+        else:
+            data_packet_size = s_stat["usb_dps"]
         
         # get dat file path and size (obtained from "sensor_name + sub_sensor_type")
         file_path = self.__get_sensor_file_path(sensor_name)
         file_size = os.path.getsize(file_path)
         
-        nof_data_packet = file_size // (data_packet_size + data_protocol_size) # "//" math.floor equivalent
+        cmplt_pkt_size = data_packet_size + data_protocol_size
+        nof_data_packet = file_size // cmplt_pkt_size # "//" math.floor equivalent
         checked_file_path = os.path.splitext(os.path.abspath(file_path))[0] + "_checked.dat"
 
         #TODO: Check data integrity looking at the first 4 bytes counter
         with open(checked_file_path, 'wb') as f, open(file_path, "rb") as rf:
-            cmplt_pkt_size = data_packet_size + data_protocol_size
+            # cmplt_pkt_size = data_packet_size + data_protocol_size
             for n in range(nof_data_packet):
                 index = n * cmplt_pkt_size
                 rf.seek(index)
@@ -720,7 +769,7 @@ class HSDatalog_v2:
                 s_dim = s_stat.get('dim')
         else:
             # get sensor dimensions
-            s_dim = s_stat.get('dim')
+            s_dim = s_stat.get('dim', 1)
         
         # get Data type byte length
         s_data_type_len = TypeConversion.check_type_length(s_stat['data_type'])
@@ -736,12 +785,21 @@ class HSDatalog_v2:
         if c_type == ComponentTypeEnum.SENSOR.value:
             #TODO sample_end = N/s = 26667 in 1 sec, 266670 in 10 sec, --> 26667*10 in 1*10 sec --> ODR*end_time(in sec) = sample_end
             #TODO sample_start = N/s = 104 in 1 sec, 1040 in 10 sec, --> 104*10 in 1*10 sec --> ODR*start_time(in sec) = sample_start
-            odr = s_stat.get('odr', 1)
+            s_category = s_stat.get("sensor_category")
+            if s_category is not None and s_category == SensorCategoryEnum.ISENSOR_CLASS_LIGHT.value:
+                odr = 1//(s_stat.get("intermeasurement_time")//1000)
+            else:
+                odr = s_stat.get("measodr")
+                if odr is None:
+                    odr = s_stat.get("odr",1)
             sample_end = int(odr * end_time) if end_time != -1 else -1
+            total_samples = file_size//(s_data_type_len * s_dim)
+            if sample_end > total_samples:
+                sample_end = total_samples
             sample_start = int(odr * start_time)
 
             #SAMPLES_PER_TS check
-            if s_samples_per_ts > (file_size/(s_data_type_len * s_dim)):
+            if s_samples_per_ts > total_samples:
                 s_samples_per_ts = 0
             try:
                 # Sample per Ts == 0 #######################################################################           
@@ -749,7 +807,7 @@ class HSDatalog_v2:
 
                     # n_of_samples = sample_end - sample_start
                     if sample_end == -1:
-                        sample_end = file_size // (s_data_type_len * s_dim)
+                        sample_end = total_samples
                         # sample_end = n_of_samples
                     
                     read_start_bytes = sample_start * (s_dim * s_data_type_len)
@@ -950,84 +1008,56 @@ class HSDatalog_v2:
     def get_ispu_output_types(self):
         if self.ispu_output_format is not None:
             return [TypeConversion.check_type(o["type"]) for o in self.ispu_output_format["output"]]
-    
+        else:
+            return None
+
+    def __get_mems_columns_names(self, ss_stat, sensor_name, s_type, numAxes):
+        if not (s_type == "mlc" or s_type == "stredl" or s_type == "ispu"):
+            cc = ['x', 'y', 'z'] if numAxes == 3 else ['x', 'y'] if numAxes == 2 else []
+            col_prefix = s_type[0].upper() + '_' if cc else ""
+            col_postfix = ''
+            if "unit" in ss_stat:
+                col_postfix = ' [' + self.__v1_unit_map(ss_stat["unit"]) + ']'
+            c = [col_prefix + s + col_postfix for s in cc] if cc else [s_type.upper()]
+        else:
+            if s_type == "ispu":
+                c = self.get_ispu_output_column_names()
+            else: 
+                if numAxes > 0:
+                    cc = range(ss_stat['dim'])
+                    col_prefix = s_type[0].upper() + '_'
+                    c = [col_prefix + str(s) for s in cc]
+                else:
+                    log.error("Wrong number of sensor axes ({})".format(numAxes))
+                    raise NSensorAxesError(sensor_name)
+        return c
+
     def __to_dataframe(self, data, time, ss_stat, sensor_name, labeled = False, start_time = 0, end_time = -1, raw_flag = False):
         if data is not None and time is not None:
             cols = []
             s_type = ""
             c_type = ss_stat.get("c_type")
             if c_type == ComponentTypeEnum.SENSOR.value:
-                numAxes = int(ss_stat['dim'])
+                numAxes = int(ss_stat.get('dim',1))
                 s_name, s_type = FileManager.decode_file_name(sensor_name)
-                # if len(ss_stat['dim']) == ss_stat['dim']:#TODO
-                if not (s_type == "mlc" or s_type == "stredl" or s_type == "ispu"):
-                    cc = ['x', 'y', 'z'] if numAxes == 3 else ['x', 'y'] if numAxes == 2 else []
-                    col_prefix = s_type[0].upper() + '_' if cc else ""
-                    col_postfix = ''
-                    if "unit" in ss_stat:
-                        col_postfix = ' [' + self.__v1_unit_map(ss_stat["unit"]) + ']'
-                    c = [col_prefix + s + col_postfix for s in cc] if cc else [s_type.upper()]
-
-                    # if numAxes == 3:
-                    #     cc = ['x','y','z'] #TODO cols = list(range(1,ss_stat['dim']+1)) - 
-                    #     col_prefix = s_type[0].upper() + '_'
-                    #     col_postfix = ''
-                    #     if "unit" in ss_stat:
-                    #         col_postfix = ' [' + self.__v1_unit_map(ss_stat["unit"]) + ']'
-                    #     c = [col_prefix + s + col_postfix for s in cc]
-                    # elif numAxes == 2:
-                    #     cc = ['x','y']
-                    #     col_prefix = s_type[0].upper() + '_'
-                    #     if "unit" in ss_stat:
-                    #         col_postfix = ' [' + self.__v1_unit_map(ss_stat["unit"]) + ']'
-                    #     c = [col_prefix + s + col_postfix for s in cc]
-                    # elif numAxes == 1:
-                    #     c = [s_type.upper()]
-                    # else:
-                    #     cc = ["out_{}".format(c) for c in range(0,numAxes)]
-                    #     col_prefix = s_type[0].upper() + '_'
-                    #     col_postfix = ''
-                    #     if "unit" in ss_stat:
-                    #         col_postfix = ' [' + self.__v1_unit_map(ss_stat["unit"]) + ']'
-                    #     c = [col_prefix + s + col_postfix for s in cc]
+                s_category = ss_stat.get("sensor_category")
+                if s_category is not None:
+                    if s_category == SensorCategoryEnum.ISENSOR_CLASS_LIGHT.value:
+                        c = ["Red","Visible","Blue","Green","IR","Clear"]
+                    elif s_category == SensorCategoryEnum.ISENSOR_CLASS_PRESENCE.value:
+                        c = ["Tambient (raw)","Tobject (raw)","Tobject (emb_comp)","Tpresence",
+                             "Presence flag","Tmotion","Motion flag","Tobject (sw_comp)",
+                             "Tobject_change (sw_comp)","Motion flag (sw_comp)","Presence flag (sw_comp)"]
+                    elif s_category == SensorCategoryEnum.ISENSOR_CLASS_RANGING.value:
+                        cc = range(ss_stat['dim'])
+                        col_prefix = s_type[0].upper() + '_'
+                        c = [col_prefix + str(s) for s in cc]
+                    elif s_category == SensorCategoryEnum.ISENSOR_CLASS_CAMERA:
+                        raise UnsupportedSensorCategoryError(sensor_name)#TODO
+                    else:
+                        c = self.__get_mems_columns_names(ss_stat, sensor_name, s_type, numAxes)
                 else:
-                    if s_type == "ispu":
-                        c = self.get_ispu_output_column_names()
-                        
-                        ispu_out_types = self.get_ispu_output_types()
-                        output_bytes_count = sum(TypeConversion.check_type_length(ot) for ot in ispu_out_types)
-                        unpack_str = "=" + ''.join(TypeConversion.get_format_char(ot) for ot in ispu_out_types)
-                        output_data = [struct.unpack(unpack_str, np.array(d[0:output_bytes_count])) for d in data]
-                        np_output_data = np.array(output_data)
-                        final_out_data = [np_output_data[:,i] for i in range(len(ispu_out_types))]
-                        final_out_data = np.transpose(final_out_data)
-                        # output_bytes_count = 0
-
-                        # unpack_str = "="
-                        # for ot in ispu_out_types:
-                        #     output_bytes_count += TypeConversion.check_type_length(ot)
-                        #     unpack_str += TypeConversion.get_format_char(ot)
-                        
-                        # output_data = []
-                        # for d in data:
-                        #     d_trimmed = np.array(d[0:output_bytes_count])
-                        #     output_data += struct.unpack(unpack_str, d_trimmed)
-                        
-                        # final_out_data = []
-                        # for i in range(len(ispu_out_types)):
-                        #     final_out_data.append(np.reshape(np.array(output_data[i::len(ispu_out_types)]), (-1, 1)))
-                            
-                        val = np.array(time)
-                        val = np.append(val, final_out_data, axis=1)
-                        
-                    else: 
-                        if numAxes > 0:
-                            cc = range(ss_stat['dim'])
-                            col_prefix = s_type[0].upper() + '_'
-                            c = [col_prefix + str(s) for s in cc]
-                        else:
-                            log.error("Wrong number of sensor axes ({})".format(numAxes))
-                            raise NSensorAxesError(sensor_name)
+                    c = self.__get_mems_columns_names(ss_stat, sensor_name, s_type, numAxes)
 
             elif c_type == ComponentTypeEnum.ALGORITHM.value:
                 algo_type = ss_stat.get("algorithm_type")
@@ -1039,12 +1069,25 @@ class HSDatalog_v2:
                 c = [col_prefix + str(s) for s in cc]
             
             elif c_type == ComponentTypeEnum.ACTUATOR.value:
-                telemetries_keys = [k for k in ss_stat.keys() if isinstance(ss_stat[k],dict) and "graph_type" in ss_stat[k] and ss_stat[k]["enabled"] == True]
+                telemetries_keys = self.__get_active_mc_telemetries_names(ss_stat, sensor_name)
                 cc = range(len(telemetries_keys))
                 c = [tk.upper() for tk in telemetries_keys]
 
             if s_type != "ispu":
                 val = np.concatenate((time, data), axis=1)
+            else:
+                ispu_out_types = self.get_ispu_output_types()
+                if ispu_out_types is not None:
+                    output_bytes_count = sum(TypeConversion.check_type_length(ot) for ot in ispu_out_types)
+                    unpack_str = "=" + ''.join(TypeConversion.get_format_char(ot) for ot in ispu_out_types)
+                    output_data = [struct.unpack(unpack_str, np.array(d[0:output_bytes_count])) for d in data]
+                    np_output_data = np.array(output_data)
+                    final_out_data = [np_output_data[:,i] for i in range(len(ispu_out_types))]
+                    final_out_data = np.transpose(final_out_data)
+                    val = np.array(time)
+                    val = np.append(val, final_out_data, axis=1)
+                else:
+                    raise MissingISPUOutputDescriptorException(sensor_name)
             
             cols = np.concatenate((["Time"], c), axis=0)
 
@@ -1064,6 +1107,7 @@ class HSDatalog_v2:
                         ss_data_frame[lbl] = lbl_col
 
             sensitivity = ss_stat.get("sensitivity", 1)
+            
             mapper = {'Time': '{0:.6f}'}
             for i, c in enumerate(cols):
                 if raw_flag or sensitivity == 1 and "data_type" in ss_stat:
@@ -1092,8 +1136,236 @@ class HSDatalog_v2:
             return self.__to_dataframe(data, time, s_stat, sensor_name, labeled, start_time, end_time, raw_flag)
         log.error("Error extracting data and timestamps from {} sensor .dat file".format(sensor_name))
         raise DataExtractionError(sensor_name)
+
+
+    # Plots Helper Functions ################################################################################################################
+    def __draw_line(self, plt, ss_data_frame, idx, color, label):
+        plt.plot(ss_data_frame['Time'], ss_data_frame.iloc[:, idx + 1], color=color, label=label)
+
+    def __draw_tag_lines(self, plt, ss_data_frame, label, alpha=0.9):
+        true_tag_idxs = ss_data_frame[label].loc[lambda x: x== True].index
+        tag_groups = np.split(true_tag_idxs, np.where(np.diff(true_tag_idxs) != 1)[0]+1)
+        for i in range(len(tag_groups)):
+            start_tag_time = ss_data_frame.at[tag_groups[i][0],'Time']
+            end_tag_time = ss_data_frame.at[tag_groups[i][-1],'Time']
+            plt.axvspan(start_tag_time, end_tag_time, facecolor='1', alpha=alpha)
+            plt.axvline(x=start_tag_time, color='g', label= "Start " + label)
+            plt.axvline(x=end_tag_time, color='r', label= "End " + label)
     
+    def __set_plot_time_label(self, axs, fig, dim):
+        if dim > 1:
+            for ax in axs.flat:
+                ax.set(xlabel = 'Time (s)')
+            for ax in fig.get_axes():
+                ax.label_outer()
+        else:
+            axs[0].set(xlabel = 'Time (s)')
+    
+    def __set_legend(self, ax, dim):
+        handles, labels = ax.get_legend_handles_labels()
+        by_label = dict(zip(labels[dim:], handles[dim:]))
+        ax.legend(by_label.values(), by_label.keys(), loc='upper left')
+
+    def __draw_regions(self, plt, ss_data_frame, label, color, edgecolor, alpha, hatch):
+        true_flag_idxs = ss_data_frame[label].loc[lambda x: x== 1.0].index
+        flag_groups = np.split(true_flag_idxs, np.where(np.diff(true_flag_idxs) != 1)[0]+1)
+        for i in range(len(flag_groups)):
+            start_flag_time = ss_data_frame.at[flag_groups[i][0],'Time']
+            end_flag_time = ss_data_frame.at[flag_groups[i][-1],'Time']
+            plt.axvspan(start_flag_time, end_flag_time, facecolor=color, edgecolor=edgecolor, alpha=alpha, hatch=hatch)
+        
+    def __plot_ranging_sensor(self, sensor_name, ss_data_frame, resolution):
+        new_shape = (4,4) if resolution == 16 else (8,8)
+        start_t1_dist_id = 5
+        start_t2_dist_id = 8
+        ss_t1_dist_df = ss_data_frame.iloc[:, range(start_t1_dist_id,len(ss_data_frame.columns),8)]
+        ss_t2_dist_df = ss_data_frame.iloc[:, range(start_t2_dist_id,len(ss_data_frame.columns),8)]
+        dist_matrices = {"t1":[], "t2": []}
+        nof_rows = len(ss_t1_dist_df)
+        for r_id in range(nof_rows):
+            row_t1 = ss_t1_dist_df.iloc[r_id]
+            row_t2 = ss_t2_dist_df.iloc[r_id]
+            t1_mat = np.array(row_t1.values).reshape(new_shape).astype('float')
+            t2_mat = np.array(row_t2.values).reshape(new_shape).astype('float')
+            dist_matrices["t1"].append(np.flip(t1_mat,axis=1))
+            dist_matrices["t2"].append(np.flip(t2_mat,axis=1))
+        fig, (ax1, ax2) = plt.subplots(1, 2)
+        plt.subplots_adjust(bottom=0.25) #adjust the bottom space for the slider
+        im_t1 = ax1.imshow(dist_matrices["t1"][0], cmap='viridis', vmin=0, vmax=4000)
+        plt.colorbar(im_t1)
+        im_t2 = ax2.imshow(dist_matrices["t2"][0], cmap='viridis', vmin=0, vmax=4000)
+        plt.colorbar(im_t2)
+
+        def update(val):
+            time_step = int(slider.val)
+            new_matrix_t1 = dist_matrices["t1"][time_step]
+            im_t1.set_data(new_matrix_t1)
+            new_matrix_t2 = dist_matrices["t2"][time_step]
+            im_t2.set_data(new_matrix_t2)
+            fig.canvas.draw_idle()
+
+        ax_slider = plt.axes([0.25, 0.02, 0.65, 0.03], facecolor='lightgoldenrodyellow')
+        slider = Slider(ax_slider, 'Time Step', 0, nof_rows -1, valinit=0, valstep=1)
+        slider.on_changed(update)
+
+        plt.show()
+    
+    def __plot_light_sensor(self, sensor_name, ss_data_frame, cols, dim, label):
+        fig = plt.figure()
+        als_lines_colors = ["#FF0000", "#999999", "#0000FF", "#00FF00", "#FF00FF", "#000000"]
+        for idx, k in enumerate(range(dim)):
+            self.__draw_line(plt, ss_data_frame, k, als_lines_colors[idx], cols[idx])
+
+        ax = fig.axes[0]
+        ax.set_xlim(left=-0.5)
+        
+        if label is not None:
+            ax.patch.set_facecolor('0.8')
+            ax.set_alpha(float('0.5'))
+            self.__draw_tag_lines(plt, ss_data_frame, label)
+            self.__set_legend(plt.gca(), dim)
+
+        plt.title(sensor_name)
+        plt.tight_layout()
+        plt.xlabel('Time (s)')
+        plt.legend(loc='upper left')
+
+        plt.draw()
+    
+    def __plot_presence_sensor(self, sensor_name, ss_data_frame, cols, label):
+        fig, axs = plt.subplots(2)
+        fig.suptitle("{} - Ambient & Object".format(sensor_name))
+        for idx, p in enumerate(axs):
+            if idx == 0:#Ambient
+                self.__draw_line(p, ss_data_frame, 0, np.random.rand(3, ), cols[0])
+            elif idx == 1:#Object
+                lines_ids = [1,2,7,8]
+                for l in lines_ids:
+                    self.__draw_line(p, ss_data_frame, l, np.random.rand(3, ), cols[l])
+            if label is not None:
+                p.patch.set_facecolor('0.6')
+                p.patch.set_alpha(float('0.5'))
+                self.__draw_tag_lines(p, ss_data_frame, label)
+            p.legend(bbox_to_anchor=(0, 1), loc='upper left', ncol=1)
+        plt.xlabel('Time (s)')
+        plt.tight_layout()
+        plt.draw()
+
+        line_color = "#335c67"
+        line_color_sw = "#bb3e03"
+        fig, axs = plt.subplots(2)
+        fig.suptitle("{} - Presence".format(sensor_name))
+        for idx, p in enumerate(axs):
+            if idx == 0:#Presence + Flag
+                color = "#97D3C2"
+                edgecolor = self.__darken_color(color, 10)
+                self.__draw_regions(p, ss_data_frame, "Presence flag", color, edgecolor, 1, '')
+                self.__draw_line(p, ss_data_frame, 3, line_color, cols[3])
+                flag_patch = mpatches.Patch(color=color, label='Presence flag')
+            elif idx == 1:#Presence + SW Flag
+                color = "#FDD891"
+                edgecolor = self.__darken_color(color, 10)
+                self.__draw_regions(p, ss_data_frame, "Presence flag (sw_comp)", color, edgecolor, 1, '')
+                self.__draw_line(p, ss_data_frame, 3, line_color_sw, cols[3])
+                flag_patch = mpatches.Patch(color=color, label='Presence flag (sw_comp)')
+            
+            if label is not None:
+                p.patch.set_facecolor('0.6')
+                p.patch.set_alpha(float('0.5'))
+                self.__draw_tag_lines(p, ss_data_frame, label, 0.4)
+
+            # where some data has already been plotted to ax
+            handles, labels = p.get_legend_handles_labels()
+            # handles is a list, so append manual patch
+            handles.append(flag_patch)
+            # plot the legend
+            p.legend(handles=handles, bbox_to_anchor=(0, 1), loc='upper left', ncol=1)
+        plt.xlabel('Time (s)')
+        plt.tight_layout()
+        plt.draw()
+
+        fig, axs = plt.subplots(2)
+        fig.suptitle("{} - Motion".format(sensor_name))
+        for idx, p in enumerate(axs):
+            if idx == 0:#Motion + Flag
+                color = "#97D3C2"
+                edgecolor = self.__darken_color(color, 10)
+                self.__draw_regions(p, ss_data_frame, "Motion flag", color, edgecolor, 1, '')
+                self.__draw_line(p, ss_data_frame, 5, line_color, cols[5])
+                flag_patch = mpatches.Patch(color=color, label='Motion flag')
+            elif idx == 1:#Motion + SW Flag
+                color = "#FDD891"
+                edgecolor = self.__darken_color(color, 10)
+                self.__draw_regions(p, ss_data_frame, "Motion flag (sw_comp)", color, edgecolor, 1, '')
+                self.__draw_line(p, ss_data_frame, 5, line_color_sw, cols[5])
+                flag_patch = mpatches.Patch(color=color, label='Motion flag (sw_comp)')
+            
+            if label is not None:
+                p.patch.set_facecolor('0.6')
+                p.patch.set_alpha(float('0.2'))
+                self.__draw_tag_lines(p, ss_data_frame, label)
+
+            # where some data has already been plotted to ax
+            handles, labels = p.get_legend_handles_labels()
+            # handles is a list, so append manual patch
+            handles.append(flag_patch) 
+            # plot the legend
+            p.legend(handles=handles, bbox_to_anchor=(0, 1), loc='upper left', ncol=1)
+        plt.xlabel('Time (s)')
+        plt.tight_layout()
+        plt.draw()
+
+    def __plot_mems_audio_sensor(self, sensor_name, ss_data_frame, cols, dim, subplots, label, raw_flag, unit):
+        if subplots:
+            fig, axs = plt.subplots(dim)
+            if dim == 1: axs = [axs]
+            fig.suptitle(sensor_name)
+            if not raw_flag and unit is not None:
+                fig.text(0.04, 0.5, self.__v1_unit_map(unit), va='center', rotation='vertical')
+            
+            for idx, p in enumerate(axs):
+                self.__draw_line(p, ss_data_frame, idx, np.random.rand(3, ), cols[idx])
+                p.axes.set_xlim(left=-0.5)
+                p.set(title=cols[idx])
+                if label is not None:
+                    p.patch.set_facecolor('0.6')
+                    p.patch.set_alpha(float('0.5'))
+                    self.__draw_tag_lines(p, ss_data_frame, label)
+            
+            self.__set_plot_time_label(axs, fig, dim)
+            if label is not None:
+                self.__set_legend(axs[0],1)
+        else:
+            fig = plt.figure()
+            
+            if not raw_flag and unit is not None:
+                plt.ylabel(self.__v1_unit_map(unit))
+
+            if "_ispu" in sensor_name:
+                n_lines = len(self.get_ispu_output_column_names())
+            else:
+                n_lines = dim
+            for k in range(n_lines):
+                self.__draw_line(plt, ss_data_frame, k, np.random.rand(3, ), cols[k])
+
+            ax = fig.axes[0]
+            ax.set_xlim(left=-0.5)
+            
+            plt.title(sensor_name)
+            plt.xlabel('Time (s)')
+            plt.legend(loc='upper left')
+
+            if label is not None:
+                ax.patch.set_facecolor('0.8')
+                ax.set_alpha(float('0.5'))
+                self.__draw_tag_lines(plt, ss_data_frame, label)
+                self.__set_legend(plt.gca(), dim)
+        
+        plt.draw()
+    # Plots Helper Functions ################################################################################################################
+
     def get_sensor_plot(self, sensor_name, sensor_type = None, start_time = 0, end_time = -1, label=None, subplots=False, raw_flag = False):
+
         try:
             sensor = self.get_component(sensor_name)
             ss_data_frame = None
@@ -1109,165 +1381,59 @@ class HSDatalog_v2:
                     ss_data_frame.iloc[:,k] = ss_data_frame.iloc[:,k].astype("float")
                 
                 #Tag columns check (if any)
-                if label is not None and len(ss_data_frame.columns) < ss_stat['dim'] + 1:
-                    log.warning("No [{}] annotation has been found in the selected acquisition".format(label))
-                    label = None
+                # if label is not None and len(ss_data_frame.columns) < ss_stat['dim'] + 1:
+                #     log.warning("No [{}] annotation has been found in the selected acquisition".format(label))
+                #     label = None
 
-                #Tag columns check (selected label exists?)
-                if label is not None and not label in ss_data_frame.columns:
-                    log.warning("No {} label found in selected acquisition".format(label))
-                    label = None
+                # #Tag columns check (selected label exists?)
+                # if label is not None and not label in ss_data_frame.columns:
+                #     log.warning("No {} label found in selected acquisition".format(label))
+                #     label = None
 
                 c_type = ss_stat["c_type"]
+                s_category = ss_stat.get("sensor_category")
+
+                if c_type == ComponentTypeEnum.ACTUATOR.value:
+                    if not label in ss_data_frame.columns:
+                        log.warning("No [{}] annotation has been found in the selected acquisition".format(label))
+                        label = None
+                else:
+                    #Tag columns check (if any)
+                    if label is not None and len(ss_data_frame.columns) < ss_stat['dim'] + 1:
+                        log.warning("No [{}] annotation has been found in the selected acquisition".format(label))
+                        label = None
+
+                    #Tag columns check (selected label exists?)
+                    if label is not None and not label in ss_data_frame.columns:
+                        log.warning("No {} label found in selected acquisition".format(label))
+                        label = None
 
                 #Check for dim (nof plots)
                 if c_type == ComponentTypeEnum.SENSOR.value:
                     dim = ss_stat.get("dim")
                 elif c_type == ComponentTypeEnum.ALGORITHM.value:
                     pass
-                elif c_type == ComponentTypeEnum.ACTUATOR.value:
-                    telemetry_keys = [k for k in ss_stat.keys() if isinstance(ss_stat[k],dict) and "graph_type" in ss_stat[k] and ss_stat[k]["enabled"] == True]
+                elif c_type == ComponentTypeEnum.ACTUATOR.value:                   
+                    telemetry_keys = self.__get_active_mc_telemetries_names(ss_stat, sensor_name)
                     dim = len(telemetry_keys)
                     keys_filter = ["Time"]
-                    selected_keys = self.prompt_actuator_telemetries_select_CLI(ss_stat, telemetry_keys)
-                    keys_filter.extend([key.upper() for key in selected_keys if isinstance(key, str)])
+                    # selected_keys = self.prompt_actuator_telemetries_select_CLI(ss_stat, telemetry_keys)
+                    keys_filter.extend([key.upper() for key in telemetry_keys if isinstance(key, str)])
+                    if label is not None:
+                        keys_filter.append(label)
+                    subplots = True
                     ss_data_frame = ss_data_frame.filter(items=keys_filter)
                 cols = ss_data_frame.columns[1:]
 
                 if ss_data_frame is not None:
-                    ### labeled and subplots
-                    if label is not None and subplots:
-                        fig, axs = plt.subplots(dim)
-                        if dim == 1:
-                            axs = (axs,)
-                        tit = sensor_name
-                        fig.suptitle(tit)
-
-                        if not raw_flag:
-                            fig.text(0.04, 0.5, self.__v1_unit_map(ss_stat['unit']), va='center', rotation='vertical')
-                        
-                        for ax in axs:
-                            ax.patch.set_facecolor('0.6')
-                            ax.patch.set_alpha(float('0.5'))
-
-                        for idx, p in enumerate(axs):
-                            true_tag_idxs = ss_data_frame[label].loc[lambda x: x== True].index
-                            tag_groups = np.split(true_tag_idxs, np.where(np.diff(true_tag_idxs) != 1)[0]+1)
-                            
-                            p.plot(ss_data_frame[['Time']], ss_data_frame.iloc[:, idx + 1], color=np.random.rand(3, ), label=cols[idx])
-                            p.axes.set_xlim(left=-0.5)
-                                
-                            for i in range(len(tag_groups)):
-                                start_tag_time = ss_data_frame.at[tag_groups[i][0],'Time']
-                                end_tag_time = ss_data_frame.at[tag_groups[i][-1],'Time']
-                                p.axvspan(start_tag_time, end_tag_time, facecolor='1', alpha=0.9)
-                                p.axvline(x=start_tag_time, color='g', label= "Start " + label)
-                                p.axvline(x=end_tag_time, color='r', label= "End " + label)
-                            
-                            # if len(cols) > 1:
-                            p.set(title=cols[idx])
-
-                        if dim > 1:
-                            for ax in axs.flat:
-                                ax.set(xlabel='Time')
-                            for ax in fig.get_axes():
-                                ax.label_outer()
-                        else:
-                            axs[0].set(xlabel='Time')
-
-                        handles, labels = axs[0].get_legend_handles_labels()
-                        by_label = dict(zip(labels[1:], handles[1:]))
-                        axs[0].legend(by_label.values(), by_label.keys(), loc='upper left')
-
-                        plt.draw()
-
-                    ### not labeled and not subplots
-                    elif label is None and not subplots:
-                        fig = plt.figure()
-                        
-                        for k in range(len(cols)):
-                            plt.plot(ss_data_frame['Time'], ss_data_frame.iloc[:, k + 1], color=np.random.rand(3, ), label=cols[k])
-                        
-                        ###### TEST matplotlib offline FFT ######################################################
-                        # flatten_df = ss_data_frame.iloc[: , 1:].to_numpy().flatten() #removes empty Time Column
-                        # plt.specgram(flatten_df, cmap="rainbow")
-                        ###### TEST matplotlib offline FFT ######################################################
-                        
-                        if not raw_flag and ss_stat.get("unit") is not None:
-                            plt.ylabel(self.__v1_unit_map(ss_stat['unit']))
-
-                        fig.axes[0].set_xlim(left=-0.5)
-
-                        plt.title(sensor_name)
-                        plt.xlabel('Time (s)')
-                        plt.legend(loc='upper left')
-                        plt.draw()
-
-                    ### labeled and not subplots
-                    elif label is not None and not subplots:
-                        fig = plt.figure()
-                        for k in range(dim):
-                            plt.plot(ss_data_frame[['Time']], ss_data_frame.iloc[:, k + 1], color=np.random.rand(3, ), label=cols[k])
-                        
-                        # [c for c in self.device_model["components"] if list(c.keys())[0] == sensor_name][0][sensor_name]
-                        if not raw_flag:
-                            plt.ylabel(self.__v1_unit_map(ss_stat['unit']))
-
-                        fig.axes[0].set_xlim(left=-0.5)
-                        fig.axes[0].patch.set_facecolor('0.8')
-                        fig.axes[0].set_alpha(float('0.5'))
-
-                        true_tag_idxs = ss_data_frame[label].loc[lambda x: x== True].index
-                        tag_groups = np.split(true_tag_idxs, np.where(np.diff(true_tag_idxs) != 1)[0]+1)
-
-                        for i in range(len(tag_groups)):
-                            # if(len(tag_groups) == 1):
-                            #     start_tag_time = ss_data_frame['Time'].iloc[0]
-                            #     end_tag_time = ss_data_frame['Time'].iloc[-1]
-                            # else:
-                            start_tag_time = ss_data_frame.at[tag_groups[i][0],'Time']
-                            end_tag_time = ss_data_frame.at[tag_groups[i][-1],'Time']
-                            plt.axvspan(start_tag_time, end_tag_time, facecolor='1', alpha=0.9)
-                            plt.axvline(x=start_tag_time, color='g', label= "Start " + label)
-                            plt.axvline(x=end_tag_time, color='r', label= "End " + label)
-
-                        plt.title(sensor_name)
-                        plt.xlabel('Time (s)')
-                        
-                        handles, labels = plt.gca().get_legend_handles_labels()
-                        by_label = dict(zip(labels[dim:], handles[dim:]))
-                        plt.legend(by_label.values(), by_label.keys(), loc='upper left')
-                        
-                        plt.draw()
-
-                    ### not labeled and subplots
-                    elif label is None and subplots:
-                        fig, axs = plt.subplots(dim)
-                        if dim == 1:
-                            axs = (axs,)
-                        tit = sensor_name
-                        fig.suptitle(tit)
-                        for idx, p in enumerate(axs):
-                            p.plot(ss_data_frame[['Time']], ss_data_frame.iloc[:, idx + 1], color=np.random.rand(3, ), label=cols[idx])
-                            p.set(title=cols[idx])
-                            p.axes.set_xlim(left=-0.5)
-                        
-                        if not raw_flag and ss_stat.get("unit") is not None:
-                            fig.text(0.04, 0.5, self.__v1_unit_map(ss_stat['unit']), va='center', rotation='vertical')
-                        
-                        if dim > 1:
-                            for ax in axs.flat:
-                                ax.set(xlabel = 'Time (s)')
-                                # if not raw_flag:
-                                #     ax.set(ylabel = ss_stat['unit'])
-                            for ax in fig.get_axes():
-                                ax.label_outer()
-                        else:
-                            axs[0].set(xlabel = 'Time (s)')
-                            # if not raw_flag:
-                            #     axs[0].set(ylabel = ss_stat['unit'])
-                        plt.draw()
-            
+                    if s_category is not None and s_category == SensorCategoryEnum.ISENSOR_CLASS_RANGING.value:
+                        self.__plot_ranging_sensor(sensor_name, ss_data_frame, 16 if ss_stat.get("resolution") == "4x4" else 64)
+                    elif s_category is not None and s_category == SensorCategoryEnum.ISENSOR_CLASS_LIGHT.value:
+                        self.__plot_light_sensor(sensor_name, ss_data_frame, cols, dim, label)
+                    elif s_category is not None and s_category == SensorCategoryEnum.ISENSOR_CLASS_PRESENCE.value:
+                        self.__plot_presence_sensor(sensor_name, ss_data_frame, cols, label)
+                    else: #ISENSOR_CLASS_MEMS and ISENSOR_CLASS_AUDIO
+                        self.__plot_mems_audio_sensor(sensor_name, ss_data_frame, cols, dim, subplots, label, raw_flag, ss_stat.get('unit'))
             else:
                 log.error("Error extracting subsensor DataFrame {}".format(sensor_name))
                 raise DataExtractionError(sensor_name)
@@ -1344,8 +1510,7 @@ class HSDatalog_v2:
         except  ValueError:
             log.error("Value Error occoured! You should batch process your {} file".format(FileManager.encode_file_name(component_name)))
             raise
-    
-    
+        
     def get_dat_file_list(self):
         return FileManager.get_dat_files_from_folder(self.__acq_folder_path)
     
@@ -1420,3 +1585,16 @@ class HSDatalog_v2:
         if tag_class_list is None:
             tag_class_list = self.get_hw_tag_classes()
         CLI.present_items(tag_class_list)
+
+    def __darken_color(self, color_hex, percent):
+        r = int(color_hex[1:3], 16)
+        g = int(color_hex[3:5], 16)
+        b = int(color_hex[5:7], 16)
+
+        r_dark = int(r * (100 - percent) / 100)
+        g_dark = int(g * (100 - percent) / 100)
+        b_dark = int(b * (100 - percent) / 100)
+
+        color_dark = "#{:02x}{:02x}{:02x}".format(r_dark, g_dark, b_dark)
+
+        return color_dark

@@ -1,3 +1,18 @@
+
+# ******************************************************************************
+# * @attention
+# *
+# * Copyright (c) 2022 STMicroelectronics.
+# * All rights reserved.
+# *
+# * This software is licensed under terms that can be found in the LICENSE file
+# * in the root directory of this software component.
+# * If no LICENSE file comes with this software, it is provided AS-IS.
+# *
+# *
+# ******************************************************************************
+#
+
 from enum import Enum
 
 DTDL_SENSORS_ID_COMP_KEY = "sensors"
@@ -45,9 +60,12 @@ MC_FAST_TELEMETRY_STRING = "fast_mc_telemetry"
 MC_SLOW_TELEMETRY_COMP_NAME = "slow_mc_telemetries"
 MC_FAST_TELEMETRY_COMP_NAME = "fast_mc_telemetries"
 
+ST_BLE_STREAM = "st_ble_stream"
+
 class SensorCategoryEnum(Enum):
     ISENSOR_CLASS_MEMS = 0
     ISENSOR_CLASS_AUDIO = 1
     ISENSOR_CLASS_RANGING = 2
     ISENSOR_CLASS_LIGHT = 3
     ISENSOR_CLASS_CAMERA = 4
+    ISENSOR_CLASS_PRESENCE = 5

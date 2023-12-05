@@ -45,7 +45,6 @@ class HSDatalog:
 
         if self.is_datalog2:
             hsd = HSDatalog_v2(self.acquisition_folder)
-
         return hsd
     
     @staticmethod
@@ -132,7 +131,7 @@ class HSDatalog:
     def get_sensor_sensitivity(hsd, sensor):
         if isinstance(hsd, HSDatalog_v2):
             s_key = list(sensor.keys())[0]
-            sensor_sensitivity = sensor[s_key]["sensitivity"]
+            sensor_sensitivity = sensor[s_key].get("sensitivity", 1)
         else:
             s_descriptor_list = sensor.sensor_descriptor.sub_sensor_descriptor
             s_status_list = sensor.sensor_status.sub_sensor_status
@@ -248,34 +247,37 @@ class HSDatalog:
         isLastChunk = False
         chunkWithErrors = 0
         lastData = 0
-        time_offset = 0 if start_time is None else start_time
-        while (isLastChunk == 0):
-
+        # time_offset = 0 if start_time is None else start_time
+        time_offset = start_time or 0
+        # while (isLastChunk == 0):
+        while not isLastChunk:
             if end_time != -1 and time_offset + chunk_time_size > end_time:
+                #read exactly the missing samples up to end_time
                 chunk_time_size = end_time - time_offset
             
             data = hsd.get_data_and_timestamps(comp_name, comp_type, start_time = time_offset, end_time = time_offset + chunk_time_size, raw_flag = True)[0]
-            if data is not None and len(data) != 0:
-                if len(data) <= chunk_size:
-                    isLastChunk = 1
+            # data = hsd.get_data_and_timestamps(comp_name, comp_type, start_time = 0, end_time = -1, raw_flag = True)
+            if data is not None:
+                if len(data) == 0 or len(data) < chunk_size:
+                    isLastChunk = True
                 else:
-                    time_offset = time_offset + chunk_time_size
+                    time_offset += chunk_time_size
 
-                data = data.astype(np.int16).reshape(-1)
+                    data = data.astype(np.int16).reshape(-1)
 
-                # check that first data of the current chunk is last data of previous chunk + 1
-                if (data[0] != lastData+1) and (isFirstChunk == False):
-                    chunkWithErrors = chunkWithErrors + 1
+                    # check that first data of the current chunk is last data of previous chunk + 1
+                    if (data[0] != lastData+1) and (isFirstChunk == False):
+                        chunkWithErrors = chunkWithErrors + 1
 
-                lastData = data[len(data)-1]
-                isFirstChunk = False
+                    lastData = data[len(data)-1]
+                    isFirstChunk = False
 
-                x = data[0] + np.array([i for i in range(len(data))]).astype(np.int16)
+                    x = data[0] + np.array([i for i in range(len(data))]).astype(np.int16)
 
-                if not (data == x).all():
-                    chunkWithErrors = chunkWithErrors + 1
+                    if not (data == x).all():
+                        chunkWithErrors = chunkWithErrors + 1
             else:
-                isLastChunk = 1
+                isLastChunk = True
                 chunkWithErrors = chunkWithErrors + 1
                     
         log.info("--> Data check completed for Component {}".format(comp_name))
@@ -288,12 +290,11 @@ class HSDatalog:
     def check_dummy_data(hsd, component, start_time, end_time):
         if isinstance(hsd, HSDatalog_v2):
             c_name = list(component.keys())[0]
-            odr = None
-            if "odr" in component[c_name]:
-                odr = component[c_name]["odr"]
+            measodr = component[c_name].get("measodr")
+            if measodr is None:
+                odr = component[c_name].get("odr", 1)
             else:
-                if odr is None:
-                    odr = 1
+                odr = measodr
             HSDatalog.__check_data(hsd, c_name, None, odr, start_time, end_time)
         else:
             s_name = component.name
@@ -307,7 +308,7 @@ class HSDatalog:
         chunk_size = 10000000 #feel fre to change it (samples)
         chunk_time_size = chunk_size/odr # seconds
         isLastChunk = False
-        # time_offset = 0 if start_time is None else start_time
+        
         time_offset = start_time or 0
         
         log.info("--> Conversion started...")
@@ -413,12 +414,12 @@ class HSDatalog:
                 HSDatalog.__convert_to_xsv(hsd, s_name, ss_type, odr, start_time, end_time, labeled, raw_data, output_folder, file_format)
                 
     @staticmethod
-    def __convert_to_txt_by_tags(hsd, comp_name, comp_type, is_active, start_time, end_time, ignore_datalog_tags, acq_folder, output_folder, out_format, hsd_dfs):
+    def __convert_to_txt_by_tags(hsd, comp_name, comp_type, is_active, start_time, end_time, ignore_datalog_tags, acq_folder, output_folder, out_format, hsd_dfs, which_tags):
         data_tags = None
         if comp_type != 'MLC' and comp_type != 'STREDL' and is_active:
             df = hsd.get_dataframe(comp_name, comp_type, start_time, end_time, labeled = not ignore_datalog_tags)
             if not ignore_datalog_tags:
-                data_tags = hsd.get_data_stream_tags(comp_name, comp_type, start_time, end_time)
+                data_tags = hsd.get_data_stream_tags(comp_name, comp_type, start_time, end_time, which_tags)
                 if ignore_datalog_tags == False and len(data_tags) == 0:
                     log.error("--> Error in format conversion. Data corrupted for {}".format(comp_name))
                     return
@@ -429,14 +430,14 @@ class HSDatalog:
         log.info("--> {} ST format conversion completed successfully".format(comp_name))
 
     @staticmethod
-    def convert_dat_to_txt_by_tags(hsd, component, start_time, end_time, ignore_datalog_tags, acq_folder, output_folder, out_format):
+    def convert_dat_to_txt_by_tags(hsd, component, start_time, end_time, ignore_datalog_tags, acq_folder, output_folder, out_format, which_tags = None):
         hsd_dfs = []
         if isinstance(hsd, HSDatalog_v2):
             c_name = list(component.keys())[0]
             enable = None
             if "enable" in component[c_name]:
                 enable = component[c_name]["enable"] #TODO check this
-                HSDatalog.__convert_to_txt_by_tags(hsd, c_name, None, enable, start_time, end_time, ignore_datalog_tags, acq_folder, output_folder, out_format, hsd_dfs)
+                HSDatalog.__convert_to_txt_by_tags(hsd, c_name, None, enable, start_time, end_time, ignore_datalog_tags, acq_folder, output_folder, out_format, hsd_dfs, which_tags)
             else:
                 if enable is None:
                     log.exception("Missing \"enable\" Properties in your device status")
@@ -446,7 +447,7 @@ class HSDatalog:
             for ss_id, ss_desc in enumerate(component.sensor_descriptor.sub_sensor_descriptor):
                 ss_type = ss_desc.sensor_type
                 is_active = component.sensor_status.sub_sensor_status[ss_id].is_active
-                HSDatalog.__convert_to_txt_by_tags(hsd, s_name, ss_type, is_active, start_time, end_time, ignore_datalog_tags, acq_folder, output_folder, out_format, hsd_dfs)
+                HSDatalog.__convert_to_txt_by_tags(hsd, s_name, ss_type, is_active, start_time, end_time, ignore_datalog_tags, acq_folder, output_folder, out_format, hsd_dfs, which_tags)
     
     @staticmethod
     def __convert_to_nanoedge_format(hsd, comp_name, comp_type, odr, signal_length, signal_increment, start_time, end_time, raw_data, output_folder):

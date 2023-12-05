@@ -228,7 +228,7 @@ void ble_interface_init(void)
 
     ble_init = 1;
   }
-  osTimerStart(bleAdvUpdaterTim_id, 3000);
+  osTimerStart(bleAdvUpdaterTim_id, HSD_BLE_ADV_UPDATER_TIMER);
 
 }
 
@@ -399,6 +399,7 @@ tBleStatus Add_Console_Service(void)
   * @retval None
   */
 
+uint8_t lowMemory = 0;
 void setConnectable(void)
 {
   char local_name[8];
@@ -419,10 +420,10 @@ void setConnectable(void)
   uint8_t alarm = 0;
   uint8_t icon = 0;
 
-  uint8_t lowMemory = 0; /*Check SD free size only if an acquisition is not ongoing (avoid dirtying the acquisition)*/
   if (!SD_Logging_Active)
   {
-    lowMemory = SDM_CheckLowMemory();
+    osMessagePut(sdThreadQueue_id, SDM_CHECK_MEMORY_USAGE, 0);
+    /* Check SD free size only if an acquisition is not ongoing (to avoid to dirtying the acquisition) */
   }
 
   if (BC_State.Id == 0 || BC_State.Id == 9) /* id == 9 --> unplugged battery id selection known bug (BatteryCharger) */
@@ -472,7 +473,7 @@ void setConnectable(void)
     0x00, /*[length][propetary adv.][STMicroelectronics Manufacturer ID]*/
     0x02, /* BlueSTSDK version*/
     0x06, /* Board_id STEVAL-MKSBOX1V1*/
-    0x0E, /* FW_id FP-SNS-DATALOG1*/
+    0x13, /* FW_id FP-SNS-DATALOG1*/
     (uint8_t) level, /* FW_data F1 */
     alarm, /* FW_data F2 */
     icon, /* FW_data F3 */
@@ -536,7 +537,7 @@ void Attribute_Modified_CB(uint16_t attr_handle, uint8_t *att_data, uint8_t data
     {
       BSP_BC_CmdSend(BATMS_ON);
 #if (HSD_BLE_STATUS_TIMER_ENABLE == 1)
-      osTimerStart(bleSendPerformanceStatusTim_id, 2000);
+      osTimerStart(bleSendPerformanceStatusTim_id, HSD_BLE_SEND_PERFORMANCE_STATUS_TIMER);
 #endif /* (HSD_BLE_STATUS_TIMER_ENABLE == 1) */
     }
     else if (att_data[0] == 0)
